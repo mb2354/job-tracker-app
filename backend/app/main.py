@@ -1,11 +1,15 @@
 from typing import List
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from .database import Base, engine, get_db
 from .models import JobApplication
-from .schemas import JobApplicationCreate, JobApplicationResponse
+from .schemas import (
+    JobApplicationCreate,
+    JobApplicationResponse,
+    JobApplicationUpdate,
+)
 
 Base.metadata.create_all(bind=engine)
 
@@ -31,5 +35,46 @@ def create_application(
 
 @app.get("/applications", response_model=List[JobApplicationResponse])
 def get_applications(db: Session = Depends(get_db)):
-    applications = db.query(JobApplication).all()
+    applications = db.query(JobApplication).order_by(JobApplication.created_at.desc()).all()
     return applications
+
+
+@app.get("/applications/{application_id}", response_model=JobApplicationResponse)
+def get_application(application_id: int, db: Session = Depends(get_db)):
+    application = db.query(JobApplication).filter(JobApplication.id == application_id).first()
+
+    if application is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    return application
+
+
+@app.put("/applications/{application_id}", response_model=JobApplicationResponse)
+def update_application(
+    application_id: int,
+    updated_application: JobApplicationUpdate,
+    db: Session = Depends(get_db)
+):
+    application = db.query(JobApplication).filter(JobApplication.id == application_id).first()
+
+    if application is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    for key, value in updated_application.model_dump().items():
+        setattr(application, key, value)
+
+    db.commit()
+    db.refresh(application)
+    return application
+
+
+@app.delete("/applications/{application_id}")
+def delete_application(application_id: int, db: Session = Depends(get_db)):
+    application = db.query(JobApplication).filter(JobApplication.id == application_id).first()
+
+    if application is None:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    db.delete(application)
+    db.commit()
+    return {"message": "Application deleted successfully"}
