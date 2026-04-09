@@ -71,3 +71,5 @@ def test_get_applications():
     assert isinstance(data, list)
     assert len(data) == 1
     assert data[0]["company_name"] == "Meta"
+
+    
